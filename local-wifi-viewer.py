@@ -8,10 +8,6 @@ from tkinter import ttk, messagebox
 import subprocess
 from concurrent.futures import ThreadPoolExecutor
 import time
-'''待优化
-4. 生成WiFi二维码；
-5. 默认选中第一个
-'''
 
 def fetch_password(wifi) -> tuple[str, str] | None:
     """获取单个WiFi的密码"""
@@ -255,15 +251,15 @@ if __name__ == "__main__":
     # 创建主窗口
     root = tk.Tk()
     root.title("本机WiFi密码查看工具 v1.0")
-    # 窗口设为居中显示
+    # 窗口居中
     w,h = 450,600
     screenw = root.winfo_screenwidth()
     screenh = root.winfo_screenheight()
     x = (screenw - w)/2
     y = (screenh - h)/2
-    root.geometry("%dx%d+%d+%d"%(w,h,x,y)) # 长x宽,距左上角+x+y,距右下角-x-y
+    root.geometry(f"{w}x{h}+{x}+{y}") # 宽x高,距左上角+x+y
     root.attributes('-topmost', True) # 置顶
-    root.iconbitmap("_internal\\wifi.ico") # 设置程序左上角显示的图标
+    root.iconbitmap("_internal\\wifi.ico") # 程序左上角图标
     # 创建UI界面
     create_ui(root)
     # 显示获取WiFi信息提示
