@@ -2,6 +2,10 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import subprocess, ctypes
 from concurrent.futures import ThreadPoolExecutor
+'''
+author: Hubert Chen
+github: https://github.com/hubert5/local-wifi-viewer
+'''
 
 class WiFiViewer:
     def __init__(self, root):
