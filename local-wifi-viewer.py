@@ -1,8 +1,6 @@
-# pyinstaller -F --hide-console hide-early -i wifi.ico local-wifi-viewer.py
-
 import tkinter as tk
 from tkinter import ttk, messagebox
-import subprocess
+import subprocess, ctypes
 from concurrent.futures import ThreadPoolExecutor
 
 class WiFiViewer:
@@ -11,8 +9,10 @@ class WiFiViewer:
         self.VERSION = "1.1.0"
         self.root.title(f"本机WiFi密码查看工具 v{self.VERSION}")
         self.wifi_data = []
-        self.hint_text = "💡 提示：双击复制WiFi密码 | 右键可删除WiFi"
-        
+        self.hint_text = "💡 提示：[双击]复制WiFi密码 | [右键]删除WiFi"
+        # 屏幕缩放因子
+        self.sf = ctypes.windll.shcore.GetScaleFactorForDevice(0) / 100
+
         # 窗口配置
         self._setup_window()
         
@@ -25,14 +25,23 @@ class WiFiViewer:
 
     def _setup_window(self):
         """设置窗口基本属性"""
-        w, h = 450, 600
-        screenw = self.root.winfo_screenwidth()
-        screenh = self.root.winfo_screenheight()
-        x, y = (screenw - w) // 2, (screenh - h) // 2
+        try: # 启用高DPI感知（仅适用Windows）
+            ctypes.windll.shcore.SetProcessDpiAwareness(2)
+        except:
+            pass
+
+        # 设置窗口缩放
+        self.root.tk.call('tk', 'scaling', self.sf*1.33)
+
+        w, h = int(450*self.sf), int(600*self.sf)
+        screenw = self.root.winfo_screenwidth()*self.sf
+        screenh = self.root.winfo_screenheight()*self.sf
+        x, y = int((screenw - w) / 2), int((screenh - h) / 2)
+
         self.root.geometry(f"{w}x{h}+{x}+{y}")
-        self.root.attributes('-topmost', True)
+        self.root.attributes('-topmost', True) # 置顶
         try:
-            self.root.iconbitmap("_internal\\wifi.ico")
+            self.root.iconbitmap("wifi.ico") # 窗口图标
         except:
             pass
 
@@ -49,6 +58,7 @@ class WiFiViewer:
         # 搜索输入框
         self.entry_search = ttk.Entry(search_frame)
         self.entry_search.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 10))
+
         self.entry_search.insert(0, "输入WiFi名称进行搜索")
         self.entry_search.configure(foreground='grey')
         self.entry_search.bind("<FocusIn>", self.on_search_focus_in)
@@ -63,14 +73,20 @@ class WiFiViewer:
         self.status_var = tk.StringVar()
         self.status_var.set(self.hint_text)
         status_label = ttk.Label(main_frame, textvariable=self.status_var, anchor=tk.W)
-        status_label.pack(side=tk.TOP, fill=tk.X, pady=5)
+        status_label.pack(side=tk.TOP, fill=tk.X, pady=int(5*self.sf))
 
         # 表格框架
         tree_frame = ttk.Frame(main_frame)
         tree_frame.pack(fill=tk.BOTH, expand=True)
 
         # 创建Treeview表格
-        self.tree = ttk.Treeview(tree_frame, columns=('列1', '列2'), show='headings', selectmode='browse')
+        style = ttk.Style()
+        style.configure("PViewStyle.Treeview",
+                        headerheight=int(20*self.sf),
+                        rowheight=int(20*self.sf))
+        self.tree = ttk.Treeview(tree_frame, columns=('列1', '列2'), 
+                                 style="PViewStyle.Treeview",
+                                 show='headings', selectmode='browse')
         self.tree.heading('列1', text='WiFi名称')
         self.tree.heading('列2', text='WiFi密码')
         self.tree.column('列1', width=200, anchor=tk.W)
@@ -99,6 +115,7 @@ class WiFiViewer:
         ).stdout.decode('utf-8', errors='ignore').split('\n')
         
         password_lines = [line for line in results if "关键内容" in line or "Key Content" in line]
+
         if password_lines:
             try:
                 password = password_lines[0].split(':')[1][1:-1]
@@ -144,7 +161,7 @@ class WiFiViewer:
                 capture_output=True
             ).stdout.decode('utf-8', errors='ignore')
             return result
-        except Exception as e:
+        except:
             return f"删除WiFi '{wifi_name}' 失败"
 
     def load_wifi_info(self):
@@ -156,8 +173,8 @@ class WiFiViewer:
             
             # 排序并置顶当前连接的WiFi
             self.wifi_data.sort(key=lambda x: x[0].lower())
-            if current_wifi and current_wifi in self.wifi_data:
-                current_wifi_new = (current_wifi[0] + "【当前连接的WiFi】", current_wifi[1])
+            if current_wifi in self.wifi_data:
+                current_wifi_new = (current_wifi[0] + "【当前WiFi】", current_wifi[1])
                 self.wifi_data = [current_wifi_new] + [x for x in self.wifi_data if x != current_wifi]
 
             # 加载数据到表格
@@ -190,9 +207,7 @@ class WiFiViewer:
         """双击复制选中WiFi的密码"""
         selected = self.tree.selection()
         if selected:
-            selected_item = selected[0]
-            password = self.tree.item(selected_item, 'values')[1]
-            wifi_name = self.tree.item(selected_item, 'values')[0]
+            wifi_name, password = self.tree.item(selected[0], 'values')
             self.root.clipboard_clear()
             self.root.clipboard_append(password)
             self.status_var.set(f"已复制 '{wifi_name}' 的密码到剪贴板")
@@ -214,9 +229,7 @@ class WiFiViewer:
         """复制密码和名称"""
         selected = self.tree.selection()
         if selected:
-            selected_item = selected[0]
-            password = self.tree.item(selected_item, 'values')[1]
-            wifi_name = self.tree.item(selected_item, 'values')[0]
+            wifi_name, password = self.tree.item(selected[0], 'values')
             self.root.clipboard_clear()
             self.root.clipboard_append(f"WiFi名称：{wifi_name}\nWiFi密码：{password}")
             self.status_var.set(f"已复制 '{wifi_name}' 的密码和名称到剪贴板")
@@ -227,7 +240,7 @@ class WiFiViewer:
         selected = self.tree.selection()
         if selected:
             selected_item = selected[0]
-            wifi_name = self.tree.item(selected_item, 'values')[0].replace("【当前连接的WiFi】", "").strip()
+            wifi_name = self.tree.item(selected_item, 'values')[0].replace("【当前连接的WiFi】", "")
             result = self.delete_wifi_profile(wifi_name)
             if "删除" in result or "deleted" in result.lower():
                 self.tree.delete(selected_item)
