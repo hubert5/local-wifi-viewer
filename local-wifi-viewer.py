@@ -6,7 +6,6 @@ from concurrent.futures import ThreadPoolExecutor
 author: Hubert Chen
 github: https://github.com/hubert5/local-wifi-viewer
 '''
-
 class WiFiViewer:
     def __init__(self, root):
         self.root = root
@@ -115,7 +114,8 @@ class WiFiViewer:
         """获取单个WiFi的密码"""
         results = subprocess.run(
             ['netsh', 'wlan', 'show', 'profile', wifi, 'key=clear'],
-            capture_output=True
+            capture_output=True,
+            creationflags=subprocess.CREATE_NO_WINDOW  # 隐藏cmd窗口
         ).stdout.decode('utf-8', errors='ignore').split('\n')
         
         password_lines = [line for line in results if "关键内容" in line or "Key Content" in line]
@@ -133,7 +133,8 @@ class WiFiViewer:
         try:
             results = subprocess.run(
                 ['netsh', 'wlan', 'show', 'interfaces'],
-                capture_output=True
+                capture_output=True,
+                creationflags=subprocess.CREATE_NO_WINDOW  # 隐藏cmd窗口
             ).stdout.decode('utf-8', errors='ignore').split('\n')
             return [line for line in results if "SSID" in line][0].split(':')[1][1:-1]
         except:
@@ -144,7 +145,8 @@ class WiFiViewer:
         try:
             output = subprocess.run(
                 ['netsh', 'wlan', 'show', 'profiles'],
-                capture_output=True
+                capture_output=True,
+                creationflags=subprocess.CREATE_NO_WINDOW  # 隐藏cmd窗口
             ).stdout.decode('utf-8', errors='ignore').split('\n')
             
             wifis = [line.split(':')[1][1:-1] for line in output if "所有用户配置文件" in line]
@@ -162,7 +164,8 @@ class WiFiViewer:
         try:
             result = subprocess.run(
                 ['netsh', 'wlan', 'delete', 'profile', f'name={wifi_name}'],
-                capture_output=True
+                capture_output=True,
+                creationflags=subprocess.CREATE_NO_WINDOW  # 隐藏cmd窗口
             ).stdout.decode('utf-8', errors='ignore')
             return result
         except:
