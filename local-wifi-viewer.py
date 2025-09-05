@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
-import subprocess, ctypes
+import subprocess, ctypes, sys, os
 from concurrent.futures import ThreadPoolExecutor
 '''
 author: Hubert Chen
@@ -15,7 +15,7 @@ class WiFiViewer:
         self.hint_text = "💡 提示：[双击]复制WiFi密码 | [右键]删除WiFi"
         # 屏幕缩放因子
         self.sf = ctypes.windll.shcore.GetScaleFactorForDevice(0) / 100
-
+        
         # 窗口配置
         self._setup_window()
         
@@ -24,7 +24,7 @@ class WiFiViewer:
         
         # 初始化加载WiFi信息
         self.status_var.set("正在获取WiFi信息...")
-        self.root.after(100, self.load_wifi_info)
+        self.root.after(50, self.load_wifi_info)
 
     def _setup_window(self):
         """设置窗口基本属性"""
@@ -44,9 +44,22 @@ class WiFiViewer:
         self.root.geometry(f"{w}x{h}+{x}+{y}")
         self.root.attributes('-topmost', True) # 置顶
         try:
-            self.root.iconbitmap("wifi.ico") # 窗口图标
+            self.root.iconbitmap(self.get_resource_path("wifi.ico")) # 窗口图标
         except:
             pass
+
+    # 获取图标文件的正确路径
+    def get_resource_path(self, relative_path):
+        """获取资源文件的绝对路径，适用于开发和打包后环境"""
+        try:
+            # PyInstaller创建临时文件夹的路径
+            base_path = sys._MEIPASS # type: ignore
+        except Exception:
+            # 开发环境下的路径
+            base_path = os.path.abspath(".")
+        # 图标文件的路径
+        icon_path = os.path.join(base_path, relative_path)
+        return icon_path
 
     def _create_ui(self):
         """创建用户界面元素"""
@@ -110,7 +123,7 @@ class WiFiViewer:
         self.menu.add_command(label="删除此wifi", command=self.callback_delete)
         self.tree.bind("<Button-3>", self.popup)
 
-    def fetch_password(self, wifi) -> tuple[str, str] | None:
+    def fetch_password(self, wifi) -> tuple[str, str]:
         """获取单个WiFi的密码"""
         results = subprocess.run(
             ['netsh', 'wlan', 'show', 'profile', wifi, 'key=clear'],
@@ -125,8 +138,9 @@ class WiFiViewer:
                 password = password_lines[0].split(':')[1][1:-1]
             except:
                 password = "无法解析密码"
-            return (wifi, password)
-        return None
+        else:
+            password = "无密码"
+        return (wifi, password)
 
     def get_current_wifi(self) -> str | None:
         """获取当前连接的WiFi名称"""
@@ -141,7 +155,7 @@ class WiFiViewer:
             return None
 
     def get_wifi_info(self) -> list[tuple[str, str]] | None:
-        """获取本机连接过的WiFi名称和密码（过滤无密码WiFi）"""
+        """获取本机连接过的WiFi名称和密码"""
         try:
             output = subprocess.run(
                 ['netsh', 'wlan', 'show', 'profiles'],
@@ -151,8 +165,8 @@ class WiFiViewer:
             
             wifis = [line.split(':')[1][1:-1] for line in output if "所有用户配置文件" in line]
 
-            with ThreadPoolExecutor() as executor:
-                wifi_data = [item for item in executor.map(self.fetch_password, wifis) if item is not None]
+            with ThreadPoolExecutor(max_workers=12) as executor: # CPU核心数为6
+                wifi_data = list(executor.map(self.fetch_password, wifis))
             
             return wifi_data
         except Exception as e:
@@ -174,15 +188,20 @@ class WiFiViewer:
     def load_wifi_info(self):
         """加载WiFi信息到表格"""
         try:
-            current_wifi_name = self.get_current_wifi()
-            current_wifi = self.fetch_password(current_wifi_name) if current_wifi_name else None
+            # 获取WiFi列表
             self.wifi_data = self.get_wifi_info() or []
-            
-            # 排序并置顶当前连接的WiFi
+
+            # 排序WiFi
             self.wifi_data.sort(key=lambda x: x[0].lower())
-            if current_wifi in self.wifi_data:
-                current_wifi_new = (current_wifi[0] + "【当前WiFi】", current_wifi[1])
-                self.wifi_data = [current_wifi_new] + [x for x in self.wifi_data if x != current_wifi]
+
+            # 置顶当前连接的WiFi
+            current_wifi_name = self.get_current_wifi()
+            for wifi in self.wifi_data:
+                if wifi[0] == current_wifi_name:
+                    current_wifi = wifi
+                    current_wifi_new = (current_wifi[0] + "【当前WiFi】", current_wifi[1])
+                    self.wifi_data = [current_wifi_new] + [x for x in self.wifi_data if x != current_wifi]
+                    break
 
             # 加载数据到表格
             for name, pwd in self.wifi_data:
