@@ -1,16 +1,17 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
-import subprocess, ctypes, sys, os
+import subprocess, ctypes, sys, os, re
 from concurrent.futures import ThreadPoolExecutor
 '''
 author: Hubert Chen
 github: https://github.com/hubert5/local-wifi-viewer
+打包语句：pyinstaller -F -w -i wifi.ico --add-data "wifi.ico;." local-wifi-viewer.py
 '''
 class WiFiViewer:
     def __init__(self, root):
         self.root = root
         self.VERSION = "1.1.0"
-        self.root.title(f"本机WiFi密码查看工具 v{self.VERSION}")
+        self.root.title(f"本机WiFi密码查看工具 v{self.VERSION} (By ссууzrx)")
         self.wifi_data = []
         self.hint_text = "💡 提示：[双击]复制WiFi密码 | [右键]删除WiFi"
         # 屏幕缩放因子
@@ -60,6 +61,14 @@ class WiFiViewer:
         # 图标文件的路径
         icon_path = os.path.join(base_path, relative_path)
         return icon_path
+
+    def decode_output(self, output, errors='ignore'):
+        output1 = output.decode('utf-8', errors=errors)
+        find = re.findall(r'配置', output1)
+        if find:
+            return output1
+        else:
+            return output.decode('gbk', errors=errors)
 
     def _create_ui(self):
         """创建用户界面元素"""
@@ -129,7 +138,8 @@ class WiFiViewer:
             ['netsh', 'wlan', 'show', 'profile', wifi, 'key=clear'],
             capture_output=True,
             creationflags=subprocess.CREATE_NO_WINDOW  # 隐藏cmd窗口
-        ).stdout.decode('utf-8', errors='ignore').split('\n')
+        ).stdout
+        results = self.decode_output(results).split('\n')
         
         password_lines = [line for line in results if "关键内容" in line or "Key Content" in line]
 
@@ -149,7 +159,8 @@ class WiFiViewer:
                 ['netsh', 'wlan', 'show', 'interfaces'],
                 capture_output=True,
                 creationflags=subprocess.CREATE_NO_WINDOW  # 隐藏cmd窗口
-            ).stdout.decode('utf-8', errors='ignore').split('\n')
+            ).stdout
+            results = self.decode_output(results).split('\n')
             return [line for line in results if "SSID" in line][0].split(':')[1][1:-1]
         except:
             return None
@@ -161,13 +172,15 @@ class WiFiViewer:
                 ['netsh', 'wlan', 'show', 'profiles'],
                 capture_output=True,
                 creationflags=subprocess.CREATE_NO_WINDOW  # 隐藏cmd窗口
-            ).stdout.decode('utf-8', errors='ignore').split('\n')
+            ).stdout
+            results = self.decode_output(output).split('\n')
+            print(results)
             
-            wifis = [line.split(':')[1][1:-1] for line in output if "所有用户配置文件" in line]
-
+            wifis = [line.split(':')[1][1:-1] for line in results if "所有用户配置文件" in line]
+            print(wifis)
             with ThreadPoolExecutor(max_workers=12) as executor: # CPU核心数为6
                 wifi_data = list(executor.map(self.fetch_password, wifis))
-            
+            print(wifi_data)
             return wifi_data
         except Exception as e:
             messagebox.showerror("错误", f"获取WiFi信息失败：{str(e)}")
@@ -180,7 +193,8 @@ class WiFiViewer:
                 ['netsh', 'wlan', 'delete', 'profile', f'name={wifi_name}'],
                 capture_output=True,
                 creationflags=subprocess.CREATE_NO_WINDOW  # 隐藏cmd窗口
-            ).stdout.decode('utf-8', errors='ignore')
+            ).stdout
+            result = self.decode_output(result)
             return result
         except:
             return f"删除WiFi '{wifi_name}' 失败"
@@ -266,7 +280,7 @@ class WiFiViewer:
         selected = self.tree.selection()
         if selected:
             selected_item = selected[0]
-            wifi_name = self.tree.item(selected_item, 'values')[0].replace("【当前连接的WiFi】", "")
+            wifi_name = self.tree.item(selected_item, 'values')[0].replace("【当前WiFi】", "")
             result = self.delete_wifi_profile(wifi_name)
             if "删除" in result or "deleted" in result.lower():
                 self.tree.delete(selected_item)
