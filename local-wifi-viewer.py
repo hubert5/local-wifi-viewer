@@ -1,6 +1,6 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
-import subprocess, ctypes, sys, os, re
+from tkinter import ttk, messagebox, filedialog
+import subprocess, ctypes, sys, os, re, datetime
 from concurrent.futures import ThreadPoolExecutor
 '''
 author: Hubert Chen
@@ -89,6 +89,10 @@ class WiFiViewer:
         self.entry_search.bind("<FocusIn>", self.on_search_focus_in)
         self.entry_search.bind("<FocusOut>", self.on_search_focus_out)
         self.entry_search.bind("<Return>", self.search_wifi)
+
+        # 导出按钮
+        export_btn = ttk.Button(search_frame, text="导出txt", command=self.export_to_txt)
+        export_btn.pack(side=tk.RIGHT, padx=(0, 5))
 
         # 搜索按钮
         search_btn = ttk.Button(search_frame, text="搜索", command=self.search_wifi)
@@ -288,6 +292,30 @@ class WiFiViewer:
                 self.root.after(2000, lambda: self.status_var.set(self.hint_text))
             else:
                 messagebox.showerror("删除失败", f"删除WiFi '{wifi_name}' 的配置文件失败：{result}")
+
+    def export_to_txt(self):
+        """导出WiFi信息到txt文件"""
+        default_name = f"WiFi_backup_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}"
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".txt",
+            filetypes=[("Text Files", "*.txt")],
+            initialfile=default_name,
+            title="保存WiFi备份文件"
+        )
+        
+        if not file_path:
+            return
+
+        try:
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write("WiFi名称\t密码\n")
+                for name, pwd in self.wifi_data:
+                    clean_name = name.replace("【当前WiFi】", "")
+                    f.write(f"{clean_name}\t{pwd}\n")
+            self.status_var.set(f"成功导出到：{file_path}")
+            self.root.after(2000, lambda: self.status_var.set(self.hint_text))
+        except Exception as e:
+            messagebox.showerror("导出失败", f"文件保存失败：{str(e)}")
 
     def popup(self, event):
         """右键菜单"""
